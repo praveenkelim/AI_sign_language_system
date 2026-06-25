@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>SignTalk AI</title>
+
+<style>
+
+body {
+    margin:0;
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg,#0f172a,#020617);
+    color:white;
+}
+
+.header {
+    text-align:center;
+    padding:20px;
+    font-size:26px;
+    font-weight:bold;
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(10px);
+}
+
+.main {
+    display:flex;
+    justify-content:center;
+    gap:30px;
+    padding:30px;
+    flex-wrap:wrap;
+}
+
+.card {
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(15px);
+    border-radius:16px;
+    padding:20px;
+    box-shadow: 0 0 25px rgba(0,255,200,0.15);
+}
+
+.video-card img {
+    width:720px;
+    max-width:95vw;
+    border-radius:12px;
+    border:2px solid #22c55e;
+}
+
+/* Right Panel */
+.info-card {
+    width:320px;
+    text-align:center;
+}
+
+.big-text {
+    font-size:120px;
+    font-weight:bold;
+    margin:10px 0;
+    color:#22c55e;
+}
+
+.confidence-bar {
+    width:100%;
+    height:18px;
+    background:#1e293b;
+    border-radius:10px;
+    overflow:hidden;
+}
+
+#confidenceFill {
+    height:100%;
+    width:0%;
+    background:#22c55e;
+}
+
+.status {
+    margin-top:10px;
+    font-size:16px;
+}
+
+.history-box {
+    margin-top:15px;
+    padding:10px;
+    background:#1e293b;
+    border-radius:10px;
+    letter-spacing:4px;
+}
+
+/* 🔥 Detection Status Badge (RIGHT PANEL) */
+.status-detect {
+    margin-top:12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    padding:6px 14px;
+    border-radius:20px;
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(10px);
+    font-size:14px;
+    border:1px solid transparent;
+    transition:0.3s ease;
+}
+
+.dot {
+    width:10px;
+    height:10px;
+    border-radius:50%;
+    background:red;
+    box-shadow:0 0 6px red;
+}
+
+.hand-detected {
+    color:#22c55e;
+    border-color:#22c55e;
+    box-shadow:0 0 10px #22c55e;
+}
+
+.hand-detected .dot {
+    background:#22c55e;
+    box-shadow:0 0 12px #22c55e;
+}
+
+.no-hand {
+    color:red;
+    border-color:red;
+}
+
+.no-hand .dot {
+    background:red;
+    box-shadow:0 0 6px red;
+}
+
+button {
+    margin-top:10px;
+    padding:6px 12px;
+    border:none;
+    border-radius:10px;
+    cursor:pointer;
+    background:#22c55e;
+    color:white;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="header">
+🤟 SignTalk AI – Real-Time Sign Language Recognition
+</div>
+
+<div class="main">
+
+<!-- VIDEO -->
+<div class="card video-card">
+    <img src="{{ url_for('video') }}">
+</div>
+
+<!-- RIGHT PANEL -->
+<div class="card info-card">
+
+<h3>Prediction</h3>
+
+<div id="gestureText">Detected: -</div>
+
+<div class="big-text" id="bigLetter">-</div>
+
+<div id="confidenceText">Confidence: 0%</div>
+
+<div class="confidence-bar">
+    <div id="confidenceFill"></div>
+</div>
+
+<div class="status" id="fpsText">FPS: 0</div>
+
+<div class="history-box" id="historyBox">-</div>
+
+<button id="voiceBtn">Voice ON</button>
+
+<!-- 🟢 Detection Status -->
+<div class="status-detect no-hand" id="handStatus">
+    <span class="dot"></span>
+    <span class="text">No Hand</span>
+</div>
+
+</div>
+
+</div>
+
+<script>
+
+let lastSpoken = "";
+let voiceEnabled = true;
+
+document.getElementById("voiceBtn").addEventListener("click", () => {
+    voiceEnabled = !voiceEnabled;
+    document.getElementById("voiceBtn").innerText =
+        voiceEnabled ? "Voice ON" : "Voice OFF";
+});
+
+function speakText(text) {
+    if (!voiceEnabled) return;
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    window.speechSynthesis.speak(utter);
+}
+
+async function fetchPrediction() {
+    try {
+        const res = await fetch("/prediction");
+        const data = await res.json();
+
+        const gesture = data.gesture;
+        const confidence = data.confidence;
+        const percent = Math.round(confidence * 100);
+
+        document.getElementById("gestureText").innerText = "Detected: " + gesture;
+        document.getElementById("bigLetter").innerText = gesture.length===1 ? gesture : "-";
+        document.getElementById("confidenceText").innerText = "Confidence: " + percent + "%";
+        document.getElementById("confidenceFill").style.width = percent + "%";
+        document.getElementById("fpsText").innerText = "FPS: " + data.fps;
+
+        if(data.history?.length>0){
+            document.getElementById("historyBox").innerText = data.history.join(" ");
+        }
+
+        const badge = document.getElementById("handStatus");
+        const text = badge.querySelector(".text");
+
+        if(data.hand_detected){
+            text.innerText="Hand Detected";
+            badge.classList.remove("no-hand");
+            badge.classList.add("hand-detected");
+        } else {
+            text.innerText="No Hand";
+            badge.classList.remove("hand-detected");
+            badge.classList.add("no-hand");
+        }
+
+        if(gesture.length===1 && gesture!==lastSpoken && confidence>0.40){
+            speakText(gesture);
+            lastSpoken=gesture;
+        }
+
+    } catch(e){ console.log(e); }
+}
+
+setInterval(fetchPrediction, 500);
+
+</script>
+
+</body>
+</html>
