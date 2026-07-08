@@ -1,14 +1,12 @@
 pipeline {
-
     agent any
 
     stages {
 
-     
         stage('Create Virtual Environment') {
             steps {
                 sh '''
-                python3 -m venv venv
+                python3.11 -m venv venv
                 '''
             }
         }
@@ -16,20 +14,23 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh '''
-                . venv/bin/activate
+                source venv/bin/activate
+                python --version
+                pip --version
+                python -m pip install --upgrade pip
                 pip install -r requirements.txt
                 '''
             }
         }
 
-        stage('Run Application') {
+        stage('Verify Application') {
             steps {
                 sh '''
-                . venv/bin/activate
-                nohup python backend/web_app.py > flask.log 2>&1 &
+                source venv/bin/activate
+                python -m py_compile backend/web_app.py
                 '''
             }
         }
-
     }
 }
+
